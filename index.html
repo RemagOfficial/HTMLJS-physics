@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Physics Simulator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+        button {
+            margin: 5px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        .slidecontainer {
+        width: 1920px; /* Width of the outside container */
+        }
+
+        /* The slider itself */
+        .slider {
+        -webkit-appearance: none;  /* Override default CSS styles */
+        appearance: none;
+        width: 1920px; /* Full-width */
+        height: 25px; /* Specified height */
+        background: #d3d3d3; /* Grey background */
+        outline: none; /* Remove outline */
+        opacity: 0.7; /* Set transparency (for mouse-over effects on hover) */
+        -webkit-transition: .2s; /* 0.2 seconds transition on hover */
+        transition: opacity .2s;
+        }
+
+        /* Mouse-over effects */
+        .slider:hover {
+        opacity: 1; /* Fully shown on mouse-over */
+        }
+
+        /* The slider handle (use -webkit- (Chrome, Opera, Safari, Edge) and -moz- (Firefox) to override default look) */
+        .slider::-webkit-slider-thumb {
+        -webkit-appearance: none; /* Override default look */
+        appearance: none;
+        width: 25px; /* Set a specific slider handle width */
+        height: 25px; /* Slider handle height */
+        background: #04AA6D; /* Green background */
+        cursor: pointer; /* Cursor on hover */
+        }
+
+        .slider::-moz-range-thumb {
+        width: 25px; /* Set a specific slider handle width */
+        height: 25px; /* Slider handle height */
+        background: #04AA6D; /* Green background */
+        cursor: pointer; /* Cursor on hover */
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <button id="addSquare">Add Square</button>
+        <button id="add100Squares">Add 100 Squares</button>
+        <button id="addCircle">Add Circle</button>
+        <button id="add100Circles">Add 100 Circles</button>
+        <button id="addTriangle">Add Triangle</button>
+        <button id="add100Triangles">Add 100 Triangles</button>
+        <button id="addRandom">Add Random</button>
+        <button id="add100Random">Add 100 Random</button>
+        <button id="clear">Clear</button>
+        <div class="slidecontainer">
+            <input type="range" min="20" max="500" value="20" class="slider" id="myRange">
+        </div>
+    </div>
+    <canvas id="canvas"></canvas>
+    <script>
+        const { Engine, Render, World, Bodies, Body, Events, Mouse, MouseConstraint, Composite } = Matter;
+
+        const engine = Engine.create();
+        const world = engine.world;
+
+        const canvas = document.getElementById('canvas');
+        const renderer = Render.create({
+            canvas: canvas,
+            engine: engine,
+            options: {
+                width: 1920,
+                height: 1080,
+                wireframes: false,
+                showPerformance: true,
+            }
+        });
+
+        function getRandomColor() {
+            const hue = Math.floor(Math.random() * 360);
+            return `hsl(${hue}, 70%, 70%)`;
+        }
+
+        let squareCount = 0;  // Start at 0 and increment before creating each square
+        let triangleCount = 0;  // Start at 0 and increment before creating each triangle
+
+        const createNumberedSquare = (x, y, size) => {
+            squareCount++;
+            return Bodies.rectangle(x, y, size, size, {
+                render: {
+                    fillStyle: getRandomColor()
+                },
+                restitution: 0.8,
+                friction: 0.8,
+                frictionAir: 0.01,
+                number: squareCount
+            });
+        };
+
+        const createNumberedTriangle = (x, y, size) => {
+            triangleCount++;
+            return Bodies.fromVertices(x, y, [
+                { x: -size / 2, y: -size / 2 },
+                { x: size / 2, y: size / 2 },
+                { x: -size / 2, y: size / 2 }
+            ], {
+                render: {
+                    fillStyle: getRandomColor()
+                },
+                restitution: 0.6,
+                friction: 0.05,
+                frictionAir: 0.01,
+                angularDamping: 0.1,
+                number: triangleCount
+            });
+        };
+
+        const createDirectionalCircle = (x, y, radius) => {
+            const color = getRandomColor();
+            const svgSize = radius * 2;
+            return Bodies.circle(x, y, radius, {
+                render: {
+                    fillStyle: color,
+                    sprite: {
+                        texture: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="${svgSize}" height="${svgSize}" viewBox="0 0 ${svgSize} ${svgSize}"><circle cx="${radius}" cy="${radius}" r="${radius - 1}" fill="${encodeURIComponent(color)}" stroke="black" stroke-width="2"/><line x1="${radius}" y1="${radius}" x2="${radius}" y2="1" stroke="red" stroke-width="${radius / 10}" stroke-opacity="0.15"/></svg>`,
+                        xScale: 1,
+                        yScale: 1
+                    }
+                },
+                restitution: 0.6,
+                friction: 0.1,
+                frictionAir: 0.01,
+                angularDamping: 0.1
+            });
+        };
+
+        const wallOptions = { isStatic: true, friction: 0, render: { fillStyle: '#222' } };
+
+        const square1 = createNumberedSquare(200, 200, 50);
+        const square2 = createNumberedSquare(300, 200, 60);
+        const circle = createDirectionalCircle(400, 200, 30);
+        const triangle = createNumberedTriangle(500, 200, 100);
+
+        const bottomWall = Bodies.rectangle(959, 1080, 1920, 50, wallOptions);
+
+        World.add(world, [square1, square2, circle, triangle, bottomWall]);
+
+        const mouse = Mouse.create(renderer.canvas);
+        const mouseConstraint = MouseConstraint.create(engine, {
+            mouse: mouse,
+            constraint: {
+                stiffness: 0.2,
+                render: {
+                    visible: false
+                }
+            }
+        });
+
+        World.add(world, mouseConstraint);
+        renderer.mouse = mouse;
+
+        Events.on(renderer, 'afterRender', function() {
+            const context = renderer.context;
+            const bodies = Composite.allBodies(engine.world);
+
+            for (let i = 0; i < bodies.length; i++) {
+                const body = bodies[i];
+                if (body.number !== undefined) {
+                    const { x, y } = body.position;
+                    const angle = body.angle;
+
+                    context.save();
+                    context.translate(x, y);
+                    context.rotate(angle);
+
+                    context.font = "20px Arial";
+                    context.fillStyle = "black";
+                    context.textAlign = "center";
+                    context.textBaseline = "middle";
+                    context.fillText(body.number.toString(), 0, 0);
+
+                    context.restore();
+                }
+            }
+        });
+
+        const wrapPosition = (body) => {
+            const { x, y } = body.position;
+            const { width } = renderer.options;
+
+            if (x < 0) Body.setPosition(body, { x: width, y: y });
+            if (x > width) Body.setPosition(body, { x: 0, y: y });
+        };
+
+        Events.on(engine, 'afterUpdate', function() {
+            const bodies = Composite.allBodies(engine.world);
+            bodies.forEach(wrapPosition);
+        });
+
+        // Button click handlers
+        document.getElementById('addSquare').addEventListener('click', function() {
+            const square = createNumberedSquare(Math.random() * 959, 50, output);
+            World.add(world, square);
+        });
+
+        document.getElementById('add100Squares').addEventListener('click', function() {
+            for (let i = 0; i < 100; i++) {
+                const square = createNumberedSquare(Math.random() * 959, 50, output);
+                World.add(world, square);
+            }
+        });
+
+        document.getElementById('addCircle').addEventListener('click', function() {
+            const circle = createDirectionalCircle(Math.random() * 959, 50, output / 2);
+            World.add(world, circle);
+        });
+
+        document.getElementById('add100Circles').addEventListener('click', function() {
+            for (let i = 0; i < 100; i++) {
+                const circle = createDirectionalCircle(Math.random() * 959, 50, output / 2);
+                World.add(world, circle);
+            }
+        });
+
+        document.getElementById('addTriangle').addEventListener('click', function() {
+            const triangle = createNumberedTriangle(Math.random() * 959, 50, output);
+            World.add(world, triangle);
+        });
+
+        document.getElementById('add100Triangles').addEventListener('click', function() {
+            for (let i = 0; i < 100; i++) {
+                const triangle = createNumberedTriangle(Math.random() * 959, 50, output);
+                World.add(world, triangle);
+            }
+        });
+
+        document.getElementById('addRandom').addEventListener('click', function() {
+            const random = Math.random();
+            if (random < 0.33) {
+                const square = createNumberedSquare(Math.random() * 959, 50, output);
+                World.add(world, square);
+            } else if (random < 0.66) {
+                const circle = createDirectionalCircle(Math.random() * 959, 50, output / 2);
+                World.add(world, circle);
+            } else {
+                const triangle = createNumberedTriangle(Math.random() * 959, 50, output);
+                World.add(world, triangle);
+            }
+        });
+
+        document.getElementById('add100Random').addEventListener('click', function() {
+            for (let i = 0; i < 100; i++) {
+                const random = Math.random();
+                if (random < 0.33) {
+                    const square = createNumberedSquare(Math.random() * 959, 50, output);
+                    World.add(world, square);
+                } else if (random < 0.66) {
+                    const circle = createDirectionalCircle(Math.random() * 959, 50, output / 2);
+                    World.add(world, circle);
+                } else {
+                    const triangle = createNumberedTriangle(Math.random() * 959, 50, output);
+                    World.add(world, triangle);
+                }
+            }
+        });
+
+        document.getElementById('clear').addEventListener('click', function() {
+            // remove all bodies other than the bottom wall
+            const bodies = Composite.allBodies(engine.world);
+            bodies.forEach((body) => {
+                if (body !== bottomWall) World.remove(engine.world, body);
+            });
+            // reset the square count
+            squareCount = 0;
+            // reset the triangle count
+            triangleCount = 0;
+        });
+
+        // Slider handler
+        var slider = document.getElementById("myRange");
+        var output = 0;
+        output = slider.value; // Display the default slider value
+
+        // Update the current slider value (each time you drag the slider handle)
+        slider.oninput = function() {
+        output = this.value;
+        }
+
+        Engine.run(engine);
+        Render.run(renderer);
+    </script>
+</body>
+</html>
